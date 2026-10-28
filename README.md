@@ -9,7 +9,7 @@ Needs STK 12.10 (Enterprise license) and Python 3.13 on Windows. Run from the `T
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install "C:\Program Files\AGI\STK 12\bin\AgPythonAPI\agi.stk12-12.10.0-py3-none-any.whl"
-python -m pip install numpy matplotlib bsk
+python -m pip install numpy matplotlib bsk pytest
 ```
 
 Make sure you install Basilisk as `bsk`, not `basilisk` (that is a different package).
@@ -34,6 +34,8 @@ python tl-1_stk\processing_tools\detumble_bsk.py
 All inputs are in `config.py` and `config_adcs.py`. Stage on/off switches are at the top of `run_mission.py`.
 
 ## Outputs (`tl-1_stk\outputs\`)
+
+It deletes the outputs at the beginning of each run. Save what you need seperately.
 
 | File | What it is |
 |---|---|

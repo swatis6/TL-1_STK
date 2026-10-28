@@ -3,7 +3,7 @@
 Panels: +-X 7 cells, +-Y 16 cells, none on +-Z. P = cells * Pmp(T) * (1 AU/d)^2 * cos(inc)
 when sunlit; delivered = x 0.912. Cylindrical shadow, BOL, no albedo, pure cosine.
 Reports sunlit and orbit averages at 28 C (ref) and 85 C (hot) vs the Power Budget.
-Assumptions: Standby Nominal spins about Z; Safe keeps ADCS on and coarse sun-points.
+Assumptions: Standby Nominal spins about Z; Safe mode set by config.SAFE_ADCS_ON.
 """
 
 import os
@@ -24,19 +24,23 @@ BUDGET = {
     "S-Band (held)": {"ref": 13.90, "hot": 11.54},
     "S-Band (Downlink passes)": {"ref": 13.90, "hot": 11.54},
     "Experiment (THz passes)": {"ref": 13.90, "hot": 11.54},
-    "Safe (sun-pointing)": {"ref": 12.64, "hot": 10.49},
-    "Tumble (worst case)": {"ref": 12.64, "hot": 10.49},
+    "Safe (ADCS on, sun-pointing)": {"ref": 12.64, "hot": 10.49},
+    "Safe (ADCS off, tumbling)": {"ref": 12.64, "hot": 10.49},
+    "Tumble (ADCS lost)": {"ref": 12.64, "hot": 10.49},
 }
-# Power Draw loads [W]; Safe adds ADCS since it stays on
+# Power Draw loads [W]; Safe load is 5.58 W with ADCS off, + 1.73 W with ADCS on
 ADCS_W = 1.73
+SAFE_BASE_W = 5.58
 LOAD = {
     "Standby Sun Pointing": 10.00, "Standby Nominal": 10.01,
     "S-Band (held)": 24.94, "S-Band (Downlink passes)": 24.94,
     "Experiment (THz passes)": 47.21, # Experiment DL, worst case
-    "Safe (sun-pointing)": round(5.58 + ADCS_W, 2), "Tumble (worst case)": round(5.58 + ADCS_W, 2),
+    "Safe (ADCS on, sun-pointing)": round(SAFE_BASE_W + ADCS_W, 2),
+    "Safe (ADCS off, tumbling)": SAFE_BASE_W,
+    "Tumble (ADCS lost)": SAFE_BASE_W,
 }
-CONTINUOUS = {"Standby Sun Pointing", "Standby Nominal", "Safe (sun-pointing)",
-              "Tumble (worst case)", "Mission timeline (actual)"}
+CONTINUOUS = {"Standby Sun Pointing", "Standby Nominal", "Safe (ADCS on, sun-pointing)",
+              "Safe (ADCS off, tumbling)", "Tumble (ADCS lost)", "Mission timeline (actual)"}
 
 
 def cell_pmp(case):
@@ -153,8 +157,12 @@ def run_power(root, sat, adcs_state=None):
     th = tracked("THz")
     if th:
         modes["Experiment (THz passes)"] = _stats(*th)
-    modes["Safe (sun-pointing)"] = _stats(tc, att_safe_sun(rc, sunc), rc, sunc)
-    modes["Tumble (worst case)"] = _stats(tc, att_tumble(len(tc), config.TUMBLE_SEED), rc, sunc)
+    tumble = _stats(tc, att_tumble(len(tc), config.TUMBLE_SEED), rc, sunc)
+    if config.SAFE_ADCS_ON:
+        modes["Safe (ADCS on, sun-pointing)"] = _stats(tc, att_safe_sun(rc, sunc), rc, sunc)
+        modes["Tumble (ADCS lost)"] = tumble # worst case if the ADCS fails in Safe
+    else:
+        modes["Safe (ADCS off, tumbling)"] = tumble
 
     # actual timeline, binned per day
     in_fine = np.zeros(len(tc), bool)
@@ -232,5 +240,6 @@ def _report(modes, days):
         print(f"  Beta angle range: {min(d['beta_deg'] for d in days)} to "
               f"{max(d['beta_deg'] for d in days)} deg")
     print("  Hot margin = orbit-average hot generation vs load (continuous modes only).")
-    print("  S-band/THz passes run on the battery. Safe load includes ADCS.")
+    print("  S-band/THz passes run on the battery. Safe mode: "
+          + ("ADCS on, Sun-pointing (+1.73 W load)." if config.SAFE_ADCS_ON else "ADCS off, tumbling."))
     print("  -> power_modes.csv, power_daily.csv")

@@ -84,21 +84,32 @@ GS_ANT_GAIN_DBI = 62.0 # doc Table 3; 2 m dish is ~72 dBi, reconcile
 THZ_GS_NOISE_TEMP_K = 1000.0 # placeholder
 EBNO_REQUIRED_DB = 8.4
 
-# S-band / UHF (placeholders until radio datasheets)
-SBAND_DL_FREQ_MHZ = 2250.0
-SBAND_UL_FREQ_MHZ = 2065.0
-SBAND_TX_POWER_DBM = 30.0
-SBAND_PATCH_GAIN_DBI = 6.0
-SBAND_GS_GT_DBK = 10.0
-UHF_DL_FREQ_MHZ = 437.0
-UHF_TX_POWER_DBM = 30.0
-UHF_SAT_ANT_GAIN_DBI = 0.0
-UHF_GS_GT_DBK = -15.0
+# S-band: GomSpace NanoCom ANT2150-DUP active patch (+Z comm end), RHCP default
+# datasheet DS 1010651 2.2: TX 2200-2290 MHz, RX 2025-2110 MHz
+SBAND_DL_FREQ_MHZ = 2250.0 # in TX band; assigned frequency TBD
+SBAND_UL_FREQ_MHZ = 2065.0 # in RX band; assigned frequency TBD
+SBAND_TX_POWER_DBM = 32.0 # PA power level 2 (typ); level 1 = 29.8, level 0 = 26.8
+SBAND_PATCH_GAIN_DBI = 8.4 # boresight gain at 2250 MHz (8 dBi nominal)
+SBAND_SAT_HPBW_DEG = 67.0 # half-power beamwidth at 2250 MHz
+SBAND_GS_GT_DBK = 10.0 # placeholder: AWS ground G/T not known
+
+# UHF: GomSpace NanoCom ANT-6F-M canted turnstile (+Z comm end), near-omni, circular
+# datasheet DS 1010785 2.2: M variant 430-440 MHz; gain >= -6 dBi with 95 % probability
+UHF_DL_FREQ_MHZ = 435.0 # M-variant centre; assigned frequency TBD
+UHF_TX_POWER_DBM = 30.0 # placeholder: AX100 output (antenna rated 2 W typ, 5 W max)
+UHF_SAT_ANT_GAIN_DBI = -6.0 # 95 % worst case at 435 MHz (peak ~+2 dBi)
+UHF_POL_LOSS_DB = 3.0 # sat polarization changes with attitude; taken off the UHF EIRP
+
+# UHF ground: M2 436CP30 crossed Yagi, 432-440 MHz, 15.5 dBic, 30 deg beamwidth
+UHF_GS_GAIN_DBI = 15.5
+UHF_GS_BEAMWIDTH_DEG = 30.0
+UHF_GS_NOISE_TEMP_K = 400.0 # placeholder system noise temperature (sky + LNA + cable)
+UHF_GS_GT_DBK = UHF_GS_GAIN_DBI - 10 * math.log10(UHF_GS_NOISE_TEMP_K) # ~ -10.5 dB/K
 
 # antenna cones (half-angles, deg) and their sensor pointing (az, el)
 THZ_SAT_HALF_ANGLE = THZ_SAT_BEAMWIDTH_DEG / 2.0
-SBAND_SAT_HALF_ANGLE = 60.0 # placeholder
-UHF_SAT_HALF_ANGLE = 80.0 # placeholder
+SBAND_SAT_HALF_ANGLE = 60.0 # ANT2150 gain ~0 dBi at 60 deg off boresight (HPBW ~67 deg)
+UHF_SAT_HALF_ANGLE = 180.0 # ANT-6F is near-omni; >= 90 means no cone (STK cones stop at 90)
 FACE_AZEL = {"+Z": (0.0, 90.0), "-Z": (0.0, -90.0)}
 
 STALE_MINUTES = 45.0 # stale-ephemeris study
@@ -112,4 +123,5 @@ THZ_TRACK_PAD_S = 30.0 # on target this long before AOS
 SLEW_TORQUE_FRAC = 0.8 # share of wheel torque used for slews
 ATT_QUAT_CONJUGATE = False # flip if the THz pointing check fails
 DO_DOWNLINK_POINTING = True # +Z to nadir on AWS passes
-SAFE_SUN_ERR_DEG = 10.0 # assumed Safe-mode pointing error
+SAFE_ADCS_ON = True # Safe mode: True = ADCS on, coarse Sun-pointing; False = ADCS off, tumbling
+SAFE_SUN_ERR_DEG = 10.0 # assumed Safe-mode pointing error (when SAFE_ADCS_ON)

@@ -23,16 +23,16 @@ DIM = np.array([0.2263, 0.100, 0.366]) # m (x, y, z)
 
 # inertia: CAD tensor from the B-dot sim (kg m^2 about CoM, physics convention)
 # B-dot sim frame has the long axis on y; rotated here into the CDR frame (long axis Z)
-# ASSUMED: B-dot +x = CDR +X and the THz end is B-dot -y, so CDR Z = y, CDR Y = -z
+# B-dot +x = CDR +X and the THz end is B-dot +y, so CDR Z = -y, CDR Y = z
 INERTIA_BDOT = np.array([
     [6.3197e-2, -5.3206e-3, 1.3419e-4],
     [-5.3206e-3, 2.1643e-2, 7.8170e-4],
     [1.3419e-4, 7.8170e-4, 7.6194e-2],
 ])
-BDOT_TO_CDR = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]]) # rows: CDR X, Y, Z in B-dot axes
+BDOT_TO_CDR = np.array([[1, 0, 0], [0, 0, 1], [0, -1, 0]]) # rows: CDR X, Y, Z in B-dot axes
 INERTIA = BDOT_TO_CDR @ INERTIA_BDOT @ BDOT_TO_CDR.T
 MOI = np.diag(INERTIA).copy()
-MOI_SOURCE = "CAD via B-dot sim (frame signs assumed)"
+MOI_SOURCE = "CAD via B-dot sim"
 MOI_IS_ESTIMATE = False
 
 
