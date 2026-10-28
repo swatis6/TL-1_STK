@@ -23,8 +23,8 @@ DO_ACCESS       = True
 DO_RAAN_SWEEP   = False   # set False once RAAN is chosen (edit config.RAAN_DEG)
 DO_ATTITUDE     = True
 DO_COMM         = True
-DO_POWER        = True
-DO_POINTING     = True
+DO_POWER        = False
+DO_POINTING     = False
 SAVE_VDF        = True
 CLEANUP_AFTER   = True    # testing: close scenario + delete VDF/lock files at the end
                           # (set False when you want to keep the saved VDF)
