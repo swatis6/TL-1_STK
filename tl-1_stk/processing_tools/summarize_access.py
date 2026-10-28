@@ -1,5 +1,6 @@
-"""
-STK access reports into a pass-summary table.
+"""Pass-summary table from the STK access reports in outputs/ (CSV + Markdown too).
+
+    python processing_tools/summarize_access.py [folder]
 """
 
 import csv
@@ -9,26 +10,26 @@ import sys
 from datetime import datetime
 
 OUT_DIR = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "outputs")
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "outputs")
 
-# one pass line: "  12    3 Jul 2027 12:30:33.505    3 Jul 2027 12:31:10.156    36.651"
+# pass line: index, start, stop, duration
 TIME = r"(\d{1,2} \w{3} \d{4} \d{2}:\d{2}:\d{2}\.\d+)"
 PASS_RE = re.compile(rf"^\s*\d+\s+{TIME}\s+{TIME}\s+([\d.]+)\s*$", re.M)
 
 
 def parse_time(s):
     day, mon, year, hms = s.split()
-    hms = hms[:15]                      # trim to microseconds for strptime
+    hms = hms[:15] # strptime takes microseconds
     return datetime.strptime(f"{day} {mon} {year} {hms}", "%d %b %Y %H:%M:%S.%f")
 
 
 def read_passes(path):
-    text = open(path).read().split("Statistics")[0]      # skip the min/max summary rows
+    text = open(path).read().split("Statistics")[0] # skip summary rows
     return [(parse_time(a), parse_time(b), float(d)) for a, b, d in PASS_RE.findall(text)]
 
 
 def describe(fname):
-    """Return (station, kind) from the file name."""
+    """(station, kind) from the file name."""
     m = re.match(r"access_(\w+?)_el(\d+)\.txt$", fname)
     if m:
         return m.group(1), f"Visible (>= {m.group(2)} deg)"

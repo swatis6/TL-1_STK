@@ -1,81 +1,68 @@
-"""
-run_mission.py — orchestrator / entry point
-============================================
-Wires config + stk_builder + mission_ops into the full flow, and owns the
-mission-sequence glue: Phase 4 (commissioning/detumble timeline) and Phase 8
-(save VDF + verification-matrix reminder).
-
-Run this file. Toggle the STAGE flags to run subsets while you validate.
+"""Entry point: builds the TeraLink-1 scenario in STK and writes every report.
 
     python run_mission.py
 """
-
 import os
 import glob
 import config
 import stk_builder as B
 import mission_ops as M
+import adcs_timeline as ADCS
+import eps_power as EPS
+
+# stage toggles
+DO_LIFETIME = True
+DO_ACCESS = True
+DO_RAAN_SWEEP = False # slow; RAAN is set by the ISS
+DO_ATTITUDE = True
+DO_ADCS = True # standby + THz + Downlink timeline
+DO_DETUMBLE = True # Basilisk B-dot sim (needs: pip install bsk matplotlib)
+DO_COMM = True
+DO_POWER = True
+DO_POINTING = False # stale-ephemeris study, not verified
+SAVE_VDF = True
+CLEAN_OUTPUTS_AT_START = True # delete old reports first
+CLEANUP_AFTER = True # close scenario, delete VDF/lock files
+
+CLEANUP_PATTERNS = [f"{config.SCENARIO_NAME}.vdf", "*.lock", "*.lck"]
 
 
-# --- Stage toggles: turn parts on/off while validating ----------------------
-DO_LIFETIME     = True
-DO_ACCESS       = True
-DO_RAAN_SWEEP   = False   # set False once RAAN is chosen (edit config.RAAN_DEG)
-DO_ATTITUDE     = True
-DO_COMM         = True
-DO_POWER        = False
-DO_POINTING     = False
-SAVE_VDF        = True
-CLEANUP_AFTER   = True    # testing: close scenario + delete VDF/lock files at the end
-                          # (set False when you want to keep the saved VDF)
-
-
-# ===========================================================================
-# PHASE 4 — commissioning / detumble (APPROXIMATION)
-# No dynamic B-dot sim: 45-min RF silence hold, then treat as stabilized after
-# a fixed window. Full dynamic detumble would need SOLIS or MATLAB/Simulink.
-# ===========================================================================
-def commissioning_phase(root):
-    print("[Phase 4] Commissioning: 45-min RF silence, checkouts, detumble (approx).")
-    M.set_standby_attitude(root)      # power-optimal standby (whole scenario for now)
-
-
-# ===========================================================================
-# PHASE 3 applied - attitude timeline
-# Mode switching by time window needs STK attitude Targeting/segments (Connect
-# Profile commands have no start/stop). Until that's built, the satellite holds
-# standby; S-band/THz pointing functions exist for whole-period per-mode studies.
-# ===========================================================================
-def attitude_timeline(root):
-    print("[Phase 3] Attitude timeline: holding standby (time-sliced modes not built yet).")
-
-
-# ===========================================================================
-# PHASE 8 — save + verification reminder
-# ===========================================================================
 def finalize(root):
     if SAVE_VDF:
         vdf = f"{config.OUT_DIR}\\{config.SCENARIO_NAME}.vdf"
-        B.cmd(root, f'Save / */Scenario/{config.SCENARIO_NAME} "{vdf}"')   # VERIFY save syntax
-        print(f"[Phase 8] Saved VDF -> {vdf}")
-    print("[Phase 8] Build the SC-1..SC-6 verification matrix from these outputs:")
-    print("  SC-1/4 (link SNR>3dB): THz_linkbudget_NUTHzGS.txt + access reports")
-    print("  SC-2/5 (1000 CEF/pass): access durations vs frame timing (Payload Data Budget)")
-    print("  SC-3/6 (100 Mbps BER<1e-4): link budget Eb/N0 vs 8.4 dB required")
-    print("  Lifetime (>=6 months): lifetime_*.txt range")
-    print("  Pointing feasibility: stale_AER_*.txt miss angle vs beamwidths")
+        try:
+            root.SaveVDFAs(vdf, "", "", "")
+            print(f"[Save] VDF -> {vdf}")
+        except Exception as e1:
+            try:
+                sc_path = f"{config.OUT_DIR}\\{config.SCENARIO_NAME}.sc"
+                root.SaveScenarioAs(sc_path)
+                print(f"[Save] VDF not available ({e1}); scenario -> {sc_path}")
+            except Exception as e2:
+                print(f"  !! [Save] failed ({e2}); results are unaffected")
+    print("[Verification] Outputs for the SC/ADCS/EPS matrix:")
+    print("  link SNR / Eb/N0: *_linkbudget_*.txt   access: access_*.txt, *_access_*.txt")
+    print("  power per mode: power_modes.csv, power_daily.csv")
+    print("  ADCS-6 per pass: adcs_passes.csv   ADCS-1 detumble: detumble_summary.txt")
+    print("  lifetime: lifetime_*.txt")
 
 
-# ===========================================================================
-# CLEANUP (testing) - runs even if the script crashes partway through
-# ===========================================================================
-CLEANUP_PATTERNS = [f"{config.SCENARIO_NAME}.vdf", "*.lock", "*.lck"]
+def clean_outputs():
+    removed = 0
+    for pat in ("*.txt", "*.csv", "*.md", "*.a", "*.png"):
+        for path in glob.glob(os.path.join(config.OUT_DIR, pat)):
+            try:
+                os.remove(path)
+                removed += 1
+            except OSError as e:
+                print(f"  !! could not remove {path}: {e}")
+    print(f"[Setup] Cleared {removed} old output file(s)")
 
 
 def cleanup(root):
     try:
         if root.CurrentScenario is not None:
-            root.CloseScenario()          # releases STK's hold on the scenario files
+            root.CloseScenario()
             print("[Cleanup] Closed scenario.")
     except Exception as e:
         print(f"[Cleanup] Could not close scenario: {e}")
@@ -88,37 +75,42 @@ def cleanup(root):
                 print(f"[Cleanup] Could not delete {path}: {e}")
 
 
-# ===========================================================================
-# MAIN
-# ===========================================================================
 def main():
     os.makedirs(config.OUT_DIR, exist_ok=True)
+    if CLEAN_OUTPUTS_AT_START:
+        clean_outputs()
+    if DO_DETUMBLE:
+        from processing_tools import detumble_bsk # imported here so the rest runs without Basilisk
+        detumble_bsk.run(show_plots=False)
 
     print("== TeraLink STK build ==")
-    stk, root, sc = B.connect_stk()          # Phase 0
+    stk, root, sc = B.connect_stk()
     try:
-        sat = B.build_satellite(root)        # Phase 0
-        B.report_decay(root, sat)            # sanity check: when does HPOP stop?
-
-        B.build_facilities(root)             # Phase 2
+        sat = B.build_satellite(root)
+        B.report_decay(root, sat)
+        B.build_facilities(root)
         if DO_ACCESS:
-            B.run_access(root)               # Phase 2
+            B.run_access(root)
         if DO_LIFETIME:
-            B.run_lifetime(root)             # Phase 1
+            B.run_lifetime(root)
         if DO_RAAN_SWEEP:
-            B.sweep_raan(root, sat)          # Phase 2b
+            B.sweep_raan(root, sat)
 
+        adcs_state = None
         if DO_ATTITUDE:
-            commissioning_phase(root)        # Phase 4 (standby fallback)
-            attitude_timeline(root)
+            M.set_standby_attitude(root) # fallback if the timeline is off
+            if DO_ADCS:
+                adcs_state = ADCS.build_attitude_timeline(root, sat)
         if DO_COMM:
-            M.build_comm(root)               # Phase 5
+            M.build_comm(root)
+            if DO_ATTITUDE and DO_ADCS:
+                ADCS.check_thz_pointing(root, sat)
         if DO_POWER:
-            M.build_power(root)              # Phase 6
+            EPS.run_power(root, sat, adcs_state)
         if DO_POINTING:
-            M.stale_ephemeris_study(root, sat)  # Phase 7
+            M.stale_ephemeris_study(root, sat)
 
-        finalize(root)                       # Phase 8
+        finalize(root)
         print("== Done. Reports in", config.OUT_DIR, "==")
     finally:
         if CLEANUP_AFTER:
