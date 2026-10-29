@@ -3,7 +3,7 @@ import math
 import os
 
 # scenario
-SCENARIO_NAME = "TeraLinkV2"
+SCENARIO_NAME = "TeraLink"
 START_TIME = "1 Jul 2027 00:00:00.000"
 STOP_TIME = "1 Jul 2028 00:00:00.000"
 OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs")
@@ -123,5 +123,5 @@ THZ_TRACK_PAD_S = 30.0 # on target this long before AOS
 SLEW_TORQUE_FRAC = 0.8 # share of wheel torque used for slews
 ATT_QUAT_CONJUGATE = False # flip if the THz pointing check fails
 DO_DOWNLINK_POINTING = True # +Z to nadir on AWS passes
-SAFE_ADCS_ON = False # Safe mode: True = ADCS on, coarse Sun-pointing; False = ADCS off, tumbling
+SAFE_ADCS_ON = True # Safe mode: True = ADCS on, coarse Sun-pointing; False = ADCS off, tumbling
 SAFE_SUN_ERR_DEG = 10.0 # assumed Safe-mode pointing error (when SAFE_ADCS_ON)
